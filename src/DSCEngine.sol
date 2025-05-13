@@ -31,7 +31,7 @@ import {SafeTransferLib} from "@solady/utils/SafeTransferLib.sol";
 contract DSCEngine is ReentrancyGuard {
   /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
-    //////////////////////////////////////////////////////////////*/
+  //////////////////////////////////////////////////////////////*/
 
   /*//////////////////////////////////////////////////////////////
                                VARIABLES
@@ -105,7 +105,7 @@ contract DSCEngine is ReentrancyGuard {
 
     // Allow token addresses
     for (uint256 i = 0; i < tokenAddresses_.length; i++) {
-      // Evitar duplicidade de endereços price feed.
+      // Avoid duplicity of Price Feed addresses.
       require(priceFeedAddress[tokenAddresses_[i]] == address(0), "Collateral token was already set");
       allowTokenAddress[tokenAddresses_[i]] = true;
       priceFeedAddress[tokenAddresses_[i]] = priceFeedAddresses_[i];
@@ -154,10 +154,10 @@ contract DSCEngine is ReentrancyGuard {
    * @param collateralAmount_: The amount of collateral to be redeemed.
   */
   function redeemCollateralForDsc(address collateralTokenAddress_, uint256 collateralAmount_) public {
-    // NOTE: IMPROVING - Evitando o input "amountDscToBurn_" para que o usuário não tente queimar mais dsc do que pode
-    // e fique com o HF quebrado e reverta a função.
+    // NOTE: IMPROVING - Removing the input "AmountdSctoburn_" so that the user does not try to burn more DSC than it can
+    // And keep the HF broken and end up with the transaction reversed.
 
-    // NOTE: IMPROVING - Função para calcular quantos dsc queimar em relação a quantidade de garantias a serem resgatadas.
+    // NOTE: IMPROVING - Function to calculate how many DSC burn in relation to the amount of guarantees to be rescued.
     uint256 dscToBurn = calculateDscToBurnFromCollateral(msg.sender, collateralTokenAddress_, collateralAmount_);
 
     if (dscToBurn == 0) {
@@ -187,17 +187,16 @@ contract DSCEngine is ReentrancyGuard {
     uint256 totalCollateralValueInUsd = _getCollateralValueInUsd(user_);
     uint256 totalDscMinted = dscMinted[user_];
 
-    // Calcula o novo valor do colateral após o resgate
     uint256 newCollateralValueInUsd = totalCollateralValueInUsd - collateralValueInUsd;
 
-    // Calcula o DSC necessário para manter o healthFactor >= 1
+    // Calculates the DSC required to maintain the healthfactor> = 1
     uint256 adjustedCollateralValue = (newCollateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
 
-    // Sempre queima DSC proporcional ao colateral resgatado
+    // Always burns DSC proportional to the collateral rescued
     if (adjustedCollateralValue < totalDscMinted) {
       dscToBurn = totalDscMinted - adjustedCollateralValue;
     } else {
-      // Queima proporcional ao valor do colateral resgatado
+      // Burn proportional to the value of the redeemed collateral
       dscToBurn = (totalDscMinted * collateralValueInUsd) / totalCollateralValueInUsd;
     }
   }
@@ -213,7 +212,7 @@ contract DSCEngine is ReentrancyGuard {
     // If the user has minted DSC, they need to burn it before redeeming collateral.
     uint256 dscMintedByUser = dscMinted[msg.sender];
 
-    // NOTE: IMPROVING - Direcionar o user para o resgate caso ele tenha dsc mintados.
+    // NOTE: IMPROVING - Direct the user to the ransom if it has DSC piped.
     if (dscMintedByUser > 0) {
       // Handle DSC burning and collateral redemption
       redeemCollateralForDsc(collateralTokenAddress_, collateralAmount_);
@@ -236,10 +235,10 @@ contract DSCEngine is ReentrancyGuard {
   */
 
   function mintDsc(uint256 amountDscToMint_) public moreThanZero(amountDscToMint_) {
-    // Calcula o máximo de DSC que pode ser mintado
+    // Calculates the maximum of SC that can be assembled
     uint256 healthFactorSimulated = _simulateHealthFactor(msg.sender, amountDscToMint_);
 
-    // Reverte se o valor solicitado exceder o máximo permitido
+    // Revert if the requested value exceeds the maximum allowed
     if (healthFactorSimulated < MIN_HEALTH_FACTOR) {
       revert HealthFactorIsBroken(healthFactorSimulated);
     }
@@ -268,8 +267,6 @@ contract DSCEngine is ReentrancyGuard {
    * divided by the liquidation threshold.
   */
   function getMaxDscToMint(address user_) public view returns (uint256 maxDscToMint) {
-    // Precisa calcular quantos dsc o user já mintou para que ele não posssa ficar mintando infinitamente de acordo com o collateral
-    // depositado
     (uint256 totalDscMinted, uint256 collateralValue) = _getTotalDscMintedAndCollateralValueOfUser(user_);
 
     if (collateralValue == 0) {
@@ -282,8 +279,6 @@ contract DSCEngine is ReentrancyGuard {
     uint256 maxMintable = (collateralValue * COLLATERAL_FACTOR) / LIQUIDATION_PRECISION;
     // `collateralValueInUsd` already on a scale of 1e18
 
-    // @audit-issue Sem esta checagem, tinha o erro de overflow.
-    // Verifica se o valor calculado é maior ou igual ao total de DSC já mintado para evitar erro de overflow/underflow
     if (maxMintable < totalDscMinted) {
       revert HealthFactorIsBroken(maxMintable);
     }
@@ -388,7 +383,7 @@ contract DSCEngine is ReentrancyGuard {
   function _simulateHealthFactor(address user_, uint256 simulatedDscMinted) internal view returns (uint256 healthFactor) {
     uint256 maxDscToMintOfUser = getMaxDscToMint(user_);
 
-    // Calcula o health factor simulado
+    // Calculates the simulated health factor
     healthFactor = (maxDscToMintOfUser * PRECISION) / simulatedDscMinted;
   }
 
@@ -509,11 +504,10 @@ contract DSCEngine is ReentrancyGuard {
     // 100 / 2000 = 0.05 ETH
     AggregatorV3Interface priceFeed = AggregatorV3Interface(priceFeedAddress[collateralToken_]);
     (, int256 price,,,) = priceFeed.latestRoundData();
-    // Precisariamos de um oracle como fallback caso chainlink falhasse
+    // NOTE: We would need an oracle like fallback if Chainlink failed
 
     uint8 decimals = priceFeed.decimals();
     uint256 priceWithDecimals = (uint256(price) * 1e18) / (10 ** decimals);
-    // 1000.000000000000000000 [1e11]
 
     // amount / price
     tokenAmount = (amount_ * PRECISION) / priceWithDecimals;

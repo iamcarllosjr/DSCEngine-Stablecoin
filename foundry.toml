@@ -1,0 +1,24 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+remappings = ["@openzeppelin/contracts=lib/openzeppelin-contracts/contracts"]
+
+[fmt]
+quote_style = "double"
+number_underscore = "thousands"
+line_length = 135
+tab_width = 2
+wrap_comments = true
+sort_imports = true
+
+[fuzz]
+runs = 2000
+depth = 32
+
+[invariant]
+runs = 2000
+depth = 32
+fail_on_revert = true
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

@@ -2,9 +2,9 @@
 
 pragma solidity 0.8.25;
 
-import {ActorManagement} from "./ActorManagement.sol";
 import {DSCEngine} from "../../../../src/DSCEngine.sol";
 import {DescentralizedStablecoin} from "../../../../src/DescentralizedStablecoin.sol";
+import {ActorManagement} from "./ActorManagement.sol";
 
 import {MockV3Aggregator} from "../../../Mocks/MockV3Aggregator.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
@@ -51,7 +51,10 @@ contract Handler is Test {
     vm.stopPrank();
   }
 
-  function depositCollateral(uint256 collateralSeed_, uint256 amountCollateral_, uint256 actorIndexSeed_) public useActor(actorIndexSeed_) {
+  function depositCollateral(uint256 collateralSeed_, uint256 amountCollateral_, uint256 actorIndexSeed_)
+    public
+    useActor(actorIndexSeed_)
+  {
     // Pre-conditions
     ERC20Mock collateral = _getCollateralFromSeed(collateralSeed_);
     amountCollateral_ = bound(amountCollateral_, 1, MAX_DEPOSIT);
@@ -63,7 +66,10 @@ contract Handler is Test {
     dscEngine.depositCollateral(address(collateral), amountCollateral_);
   }
 
-  function redeemCollateral(uint256 collateralSeed_, uint256 amountCollateral_, uint256 actorIndexSeed_) public useActor(actorIndexSeed_) {
+  function redeemCollateral(uint256 collateralSeed_, uint256 amountCollateral_, uint256 actorIndexSeed_)
+    public
+    useActor(actorIndexSeed_)
+  {
     // Pre-conditions
     ERC20Mock collateral = _getCollateralFromSeed(collateralSeed_);
     uint256 collateralDeposited = dscEngine.getCollateralBalanceOfUser(currentActor, address(collateral));
@@ -82,7 +88,8 @@ contract Handler is Test {
   function mintDsc(uint256 amountDsc_, uint256 actorIndexSeed_) public useActor(actorIndexSeed_) {
     // Pre-conditions
     uint256 maxDscMint = dscEngine.getMaxDscToMint(currentActor);
-    if (maxDscMint == 0) { // permitir que seja 0 ?
+    if (maxDscMint == 0) {
+      // permitir que seja 0 ?
       return;
     }
     amountDsc_ = bound(amountDsc_, 1, maxDscMint);

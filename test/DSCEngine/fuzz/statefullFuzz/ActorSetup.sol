@@ -51,7 +51,8 @@ pragma solidity 0.8.25;
 //     }
 //   }
 
-// function redeemCollateral(uint256 collateralSeed_, uint256 amountCollateral_, uint256 actorIndexSeed) public useActor(actorIndexSeed) {
+// function redeemCollateral(uint256 collateralSeed_, uint256 amountCollateral_, uint256 actorIndexSeed) public
+// useActor(actorIndexSeed) {
 //     ERC20Mock collateral = _getCollateralFromSeed(collateralSeed_);
 //     uint256 amountCollateralToRedeem = dscEngine.getCollateralBalanceOfUser(currentActor, address(collateral));
 //     amountCollateral_ = bound(amountCollateral_, 0, amountCollateralToRedeem);

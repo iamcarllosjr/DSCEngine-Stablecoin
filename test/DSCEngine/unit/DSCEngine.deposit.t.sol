@@ -24,7 +24,7 @@ contract DSCEngineTestDeposit is BaseTest {
     dscEngine.depositCollateralAndMintDsc(weth, AMOUNT_COLLATERAL);
     vm.stopPrank();
 
-    (uint256 totalDscMinted, ) = dscEngine.getAccountInformation(user);
+    (uint256 totalDscMinted,) = dscEngine.getAccountInformation(user);
     console.log("totalDscMinted: ", totalDscMinted);
     // $150 collateral value
     // 75.000000000000000000 dsc minted

@@ -182,7 +182,7 @@ contract DSCEngine is ReentrancyGuard {
     public
     view
     returns (uint256 dscToBurn)
-{
+  {
     uint256 collateralValueInUsd = getUsdValue(collateralTokenAddress_, collateralAmount_);
     uint256 totalCollateralValueInUsd = _getCollateralValueInUsd(user_);
     uint256 totalDscMinted = dscMinted[user_];
@@ -190,17 +190,17 @@ contract DSCEngine is ReentrancyGuard {
     // Calcula o novo valor do colateral após o resgate
     uint256 newCollateralValueInUsd = totalCollateralValueInUsd - collateralValueInUsd;
 
-     // Calcula o DSC necessário para manter o healthFactor >= 1
+    // Calcula o DSC necessário para manter o healthFactor >= 1
     uint256 adjustedCollateralValue = (newCollateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
 
     // Sempre queima DSC proporcional ao colateral resgatado
     if (adjustedCollateralValue < totalDscMinted) {
-        dscToBurn = totalDscMinted - adjustedCollateralValue;
+      dscToBurn = totalDscMinted - adjustedCollateralValue;
     } else {
-        // Queima proporcional ao valor do colateral resgatado
-        dscToBurn = (totalDscMinted * collateralValueInUsd) / totalCollateralValueInUsd;
+      // Queima proporcional ao valor do colateral resgatado
+      dscToBurn = (totalDscMinted * collateralValueInUsd) / totalCollateralValueInUsd;
     }
-}
+  }
 
   /*
    * @notice: This function is used to redeem collateral.
@@ -209,16 +209,15 @@ contract DSCEngine is ReentrancyGuard {
    * @dev: If the user minted DSC, he needs to burn it before redeeming collateral.
   */
   function redeemCollateral(address collateralTokenAddress_, uint256 collateralAmount_) public moreThanZero(collateralAmount_) {
-
     // Check if the user has minted DSC.
     // If the user has minted DSC, they need to burn it before redeeming collateral.
     uint256 dscMintedByUser = dscMinted[msg.sender];
-    
+
     // NOTE: IMPROVING - Direcionar o user para o resgate caso ele tenha dsc mintados.
     if (dscMintedByUser > 0) {
-        // Handle DSC burning and collateral redemption
-        redeemCollateralForDsc(collateralTokenAddress_, collateralAmount_);
-        return; // Prevent further execution
+      // Handle DSC burning and collateral redemption
+      redeemCollateralForDsc(collateralTokenAddress_, collateralAmount_);
+      return; // Prevent further execution
     }
 
     // Redeem
@@ -269,10 +268,11 @@ contract DSCEngine is ReentrancyGuard {
    * divided by the liquidation threshold.
   */
   function getMaxDscToMint(address user_) public view returns (uint256 maxDscToMint) {
-    // Precisa calcular quantos dsc o user já mintou para que ele não posssa ficar mintando infinitamente de acordo com o collateral depositado
+    // Precisa calcular quantos dsc o user já mintou para que ele não posssa ficar mintando infinitamente de acordo com o collateral
+    // depositado
     (uint256 totalDscMinted, uint256 collateralValue) = _getTotalDscMintedAndCollateralValueOfUser(user_);
 
-    if(collateralValue == 0) {
+    if (collateralValue == 0) {
       revert NotEnoughCollateral(collateralValue);
     }
 
@@ -285,7 +285,7 @@ contract DSCEngine is ReentrancyGuard {
     // @audit-issue Sem esta checagem, tinha o erro de overflow.
     // Verifica se o valor calculado é maior ou igual ao total de DSC já mintado para evitar erro de overflow/underflow
     if (maxMintable < totalDscMinted) {
-        revert HealthFactorIsBroken(maxMintable);
+      revert HealthFactorIsBroken(maxMintable);
     }
 
     maxDscToMint = maxMintable - totalDscMinted;

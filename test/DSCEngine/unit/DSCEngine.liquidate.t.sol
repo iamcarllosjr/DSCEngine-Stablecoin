@@ -12,64 +12,88 @@ contract DSCEngineLiquidateTest is BaseTest {
   address liquidator = makeAddr("liquidator");
   uint256 amountCollateral = 0.075 ether;
 
+  uint256 constant LIQUIDATION_BPS = 10000; // 100%
+  uint256 constant LIQUIDATION_BONUS_BPS = 1000; // 10%
+
   function setUp() public virtual override {
     BaseTest.setUp();
   }
 
+  /* Esses são os cálculos principais envolvidos até o ponto de liquidação de um usuário. Em resumo :
+
+  1. Calcular o Health Factor.
+
+  2. Se o HF for menor que 1, calcular a dívida a ser liquidada.
+
+  3. Ajustar a dívida a ser liquidada de acordo com o colateral disponível.
+
+  4. Permitir que o liquidante cubra a dívida do usuário.
+  */
+
   function test_Liquidate() public mintAndApproveERC20 {
+    // Iniciar o "prank" para o liquidator
     vm.startPrank(liquidator);
-    // Mint tokens to the liquidator for the liquidation
+
+    // Mintar tokens para o liquidator
     ERC20Mock(weth).mint(liquidator, amountCollateral);
     uint256 liquidatorBalance = ERC20Mock(weth).balanceOf(liquidator);
-    console.log("Liquidator WETH balance: ", ERC20Mock(weth).balanceOf(liquidator));
+    console.log("Liquidator WETH balance: ", liquidatorBalance);
     ERC20Mock(weth).approve(address(dscEngine), liquidatorBalance);
 
-    // Liquidator deposit collateral and mint DSC
-    // This is to make sure the liquidator has enough DSC to cover the liquidation
+    // Liquidator deposita colateral e mint DSC
     dscEngine.depositCollateralAndMintDsc(weth, liquidatorBalance);
     uint256 liquidatorDscBalance = dscEngine.dscMinted(liquidator);
     console.log("Liquidator DSC balance: ", liquidatorDscBalance);
 
-    // Approve the dscEngine to spend the liquidator's DSC (Burn)
+    // Aprovar o DSC Engine para gastar os DSC do liquidator
     dsc.approve(address(dscEngine), liquidatorDscBalance);
     vm.stopPrank();
 
-    // User deposit collateral and mint DSC
+    // Usuário deposita colateral e mint DSC
     vm.prank(user);
     dscEngine.depositCollateralAndMintDsc(weth, amountCollateral);
 
     uint256 userBalance = dscEngine.dscMinted(user);
-    console.log("User DSC balance: ", userBalance);
+    console.log("Saldo em DSC do usuario no protocol: ", userBalance);
 
-    // User HF
+    // Calcular o Health Factor antes da atualização do preço
     uint256 healthFactorBeforeUpdatePrice = dscEngine.getHealthFactor(user);
     console.log("User health factor before update price: ", healthFactorBeforeUpdatePrice);
 
-    // Update the price of the collateral to make the user "undercollateralized"
-    int256 ethUsdUpdatedPrice = 1000e8; // 1 ETH = $1000
+    // Atualizar o preço do colateral para deixar o usuário "under-collateralized"
+    int256 ethUsdUpdatedPrice = 1200e8; // 1 ETH = $1200
     MockV3Aggregator(ethUsdPriceFeed).updateAnswer(ethUsdUpdatedPrice);
 
-    // New user HF
+    // Calcular o novo Health Factor
     uint256 healthFactorAfterUpdatePrice = dscEngine.getHealthFactor(user);
-    console.log("User health factor after update price: ", healthFactorAfterUpdatePrice);
+    console.log("User health factor after update price (Apto a ser liquidado): ", healthFactorAfterUpdatePrice);
 
-    // Call the liquidate function
+
+    // Liquidar a dívida
     vm.prank(liquidator);
-    dscEngine.liquidate(weth, user, userBalance);
+    dscEngine.liquidate(weth, user, 50e18);
 
-    // Check the liquidator's balance after liquidation
-    uint256 liquidatorBalanceAfter = ERC20Mock(weth).balanceOf(liquidator);
+    // Verificar o saldo do liquidator após a liquidação
+    uint256 liquidatorBalanceAfter = ERC20Mock(weth).balanceOf(liquidator); // .068750000000000000
     console.log("Liquidator WETH balance after liquidation: ", liquidatorBalanceAfter);
-    // Check the user's balance after liquidation
+
+    // Verificar o saldo do usuário após a liquidação
     uint256 userBalanceAfter = dscEngine.dscMinted(user);
-    console.log("User DSC balance after liquidation: ", userBalanceAfter);
-    // Check the user's collateral balance after liquidation
+    console.log("Saldo em DSC do usuario apos ser liquidado (Apenas subtraido do protocolo): ", userBalanceAfter);
+
+    // Verificar o saldo de colateral do usuário após a liquidação
     uint256 userCollateralBalanceAfter = ERC20Mock(weth).balanceOf(user);
     console.log("User WETH balance after liquidation: ", userCollateralBalanceAfter);
-    // Check the liquidator's DSC balance after liquidation
-    uint256 liquidatorDscBalanceAfter = dscEngine.dscMinted(liquidator);
-    console.log("Liquidator DSC balance after liquidation: ", liquidatorDscBalanceAfter);
-  }
+
+    // Verificar o saldo de DSC do liquidator após a liquidação
+    uint256 liquidatorDscBalanceAfter = dsc.balanceOf(liquidator);
+    console.log("Liquidator DSC balance after liquidation (Quantidade que deve ter apos cobrir o debito): ", liquidatorDscBalanceAfter);
+
+    // Verificar o healthFactor do user
+    uint256 userHealthFactorAfter = dscEngine.getHealthFactor(user);
+    console.log("User health factor after liquidation: ", userHealthFactorAfter);
+}
+
 
   function test_Revert_Liquidate_With_Zero_Amount() public mintAndApproveERC20 {
     uint256 debtToLiquidate = 0;

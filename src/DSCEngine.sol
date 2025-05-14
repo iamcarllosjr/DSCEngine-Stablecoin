@@ -42,7 +42,7 @@ contract DSCEngine is ReentrancyGuard {
   uint256 private constant PRECISION = 1e18;
   uint256 private constant COLLATERAL_FACTOR = 50; // 200% collaterization
   // CollateralFactor = 50% (Higher Margin of Safety)
-  uint256 private constant LIQUIDATION_THRESHOLD = 80;
+  uint256 private constant LIQUIDATION_THRESHOLD = 80; // 80% (Lower Margin of Safety)
   uint256 private constant LIQUIDATION_PRECISION = 100;
   uint256 private constant MIN_HEALTH_FACTOR = 1e18;
   uint256 private constant LIQUIDATION_BONUS_BPS = 1000; // 10% bonus
@@ -295,44 +295,38 @@ contract DSCEngine is ReentrancyGuard {
    * @param user_: The address of the user to be liquidated.
    * @param debtToCover_: The amount of debt to be covered.
   */
-  function liquidate(address collateralTokenAddress_, address user_, uint256 debtToCover_)
-    external
-    moreThanZero(debtToCover_)
-    nonReentrant
-  {
-    // We need to check health factor of the user
-    uint256 startingHealthFactor = _healthFactor(user_);
-    if (startingHealthFactor >= MIN_HEALTH_FACTOR) {
-      revert UserCannotBeLiquidated(user_, startingHealthFactor);
+  function liquidate(
+    address collateralTokenAddress_,
+    address user_,
+    uint256 debtToCover_
+) external moreThanZero(debtToCover_) nonReentrant {
+    uint256 oldHealthFactor = _healthFactor(user_);
+
+    if (oldHealthFactor >= MIN_HEALTH_FACTOR) {
+        revert UserCannotBeLiquidated(user_, oldHealthFactor);
     }
 
-    // We want to burn their dsc (debt) and take their collateral
-    // User: $140 ETH, $100 DSC
-    // debtToCover: $100 DSC
-    // $100 of DSC == ??? ETH
-    // getTokenAmountFromUsd() return the amount of debt in USD
+    // 1. Calcula o valor equivalente do colateral que cobre a dívida
     uint256 tokenAmountFromDebtCovered = getTokenAmountFromUsd(collateralTokenAddress_, debtToCover_);
 
-    //Calculate 10% bonus
+    // 2. Aplica o bônus de liquidação (10%)
     uint256 bonusCollateral = (tokenAmountFromDebtCovered * LIQUIDATION_BONUS_BPS) / LIQUIDATION_BPS;
 
+    // 3. Total de colateral que o liquidante vai receber
     uint256 totalCollateralToRedeem = tokenAmountFromDebtCovered + bonusCollateral;
-    // .082500000000000000
 
+    // 4. Resgata o colateral do usuário e envia ao liquidator
     _redeemCollateral(collateralTokenAddress_, totalCollateralToRedeem, user_, msg.sender);
 
-    // Now, we need burn dsc of the user
-    // user_ : who is being liquidated
-    // msg.sender: who is liquidating
-    // debtToCover_: the amount of dsc to be burned
+    // 5. Queima DSC do liquidante (ele cobre a dívida do usuário)
     _burnDSC(user_, msg.sender, debtToCover_);
 
-    // NOTE: IMPROVING - HF do user só é melhorado caso seja liquidado 100%
-    uint256 endingUserHealthFactor = _healthFactor(user_);
-    if (endingUserHealthFactor < startingHealthFactor) {
-      revert HealthFactorNotImproved(endingUserHealthFactor);
+    // 7. Verifica se a saúde do usuário melhorou após a liquidação
+    uint256 newHealthFactor = _healthFactor(user_);
+    if (newHealthFactor <= oldHealthFactor) {
+        revert HealthFactorNotImproved(newHealthFactor); // .640000000000000000 .160000000000000000
     }
-  }
+}
 
   /*
    * @notice: This function is used to check the health factor of a user.
@@ -366,18 +360,10 @@ contract DSCEngine is ReentrancyGuard {
 
     // Step 1: Calculate the threshold-adjusted collateral
     uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
-    // $150 * 80 / 100 = 120
-    // 120 / 75 = 1.6 (Nice HealthFactor)
-
-    // Bad HealthFactor :
-    // User deposited $150/ETH and mint 75 DSC
-    // Collateral of user down for $93/ETH
-    // $93/ETH * 80 = 7440 / 100 = 74,4
+    // $5e8 * 80 / 100 = 4e8
 
     // Step 2: Calculate the final health factor
     healthFactor = (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
-    // 74,4 * 1e18 / 75 = 0.99 (0.99 < 1e18)
-    // Its means that the user is undercollateralized and at risk of liquidation
   }
 
   function _simulateHealthFactor(address user_, uint256 simulatedDscMinted) internal view returns (uint256 healthFactor) {
@@ -490,10 +476,10 @@ contract DSCEngine is ReentrancyGuard {
   }
 
   /*
-   * @notice: This function is used to get the amount of collateral from USD value.
+   * @notice: This function is used to get the amount of collateral from token amount.
    * @param collateralToken_: The address of the collateral token.
-   * @param amount_: The amount of USD
-   * @return amountInUsd: The amount of collateral in USD.
+   * @param amount_: The amount of tokens
+   * @return amountInUsd: The amount of collateral.
   */
   function getTokenAmountFromUsd(address collateralToken_, uint256 amount_) public view returns (uint256 tokenAmount) {
     if (collateralToken_ == address(0)) {
